@@ -12,6 +12,7 @@
 *.c
 *.h
 *.cpp
+src/
 # add end 
 
 # Normal rules
