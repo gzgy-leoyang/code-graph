@@ -9,6 +9,11 @@ import readline
 
 import string
 
+## 绘图
+import networkx as nx
+import matplotlib.pyplot as plt
+
+
 ##############
 ##
 ##############
@@ -19,6 +24,8 @@ class Function:
         self.start_line = 0
         self.end_line = 0
         self.parent_src_file = ""
+        self.called = 0
+        self.calling = 0 
 
 ##############
 ## 
@@ -120,6 +127,7 @@ def parse_file(  src_file_name ):
 
                     if re_call_counter == 0 :
                         f = Function( n )
+                        f.called += 1
                         def_func.call_func_list.append( f )
                 elif call_void_func_patten.match( line ):
                     n =  get_void_func_name( line )
@@ -129,16 +137,18 @@ def parse_file(  src_file_name ):
                             re_call_counter += 1
                     if re_call_counter == 0 :
                         f = Function( n )
+                        f.called += 1
                         def_func.call_func_list.append( f )
                 elif def_func_patten_end.match( line ):
                     scan_func_step = 0
                     def_func.end_line = current_line
+                    def_func.calling = def_func.call_func_list.__len__()
                     def_func = None
         
-    # for f in src_file.func_list:
-    #     print("** %s (%s : %i-%i )"%( f.name, f.parent_src_file, f.start_line, f.end_line ) )
-    #     for ff in f.call_func_list :
-    #         print("     |---",ff.name)
+    for f in src_file.func_list:
+        print("** %s (%s : %i-%i )"%( f.name, f.parent_src_file, f.start_line, f.end_line ) )
+        for ff in f.call_func_list :
+            print("     |---",ff.name)
     return src_file
 
 
@@ -161,7 +171,7 @@ def get_func_obj_by_name( func_name ):
     
 #################
 layer_counter = 0
-def function_tree ( f ):
+def print_func_relationship ( f ):
     global layer_counter 
     if f.call_func_list.__len__() != 0 :
         layer_counter += 1
@@ -170,23 +180,72 @@ def function_tree ( f ):
             print ("|-",call_f.name )
             func_obj = get_func_obj_by_name( call_f.name )
             if func_obj != None:
-                function_tree ( func_obj )  
+                print_func_relationship ( func_obj )  
         layer_counter -= 1
         return        
     else :
         return None
 
+func_counter = 0
+def relationship ( f, id ):
+    global canvas
+    
+    parent_id = id
+
+    child_id = 0
+    chide_base = id *10
+    child_offset = 0
+    
+    canvas.add_node( parent_id , desc= f.name )
+    if f.call_func_list.__len__() != 0 :
+        child_offset = 0
+        for call_f in f.call_func_list:
+            child_id = chide_base + child_offset
+            # 添加一个子节点
+            canvas.add_node( child_id , desc= call_f.name )
+            print ( "C: %i,%s"% ( child_id ,call_f.name) ) 
+            # 添加“父子”连接
+            canvas.add_edge( parent_id , child_id) 
+            # 根据函数名，获取函数对象，准备向下遍历
+            func_obj = get_func_obj_by_name( call_f.name )
+            child_offset += 1
+            if func_obj != None:
+                relationship (func_obj, child_id ) 
+        return        
+    else :
+        return None
+
+
+canvas = None
+
+def draw_func_relationship(f):
+    global canvas
+    relationship (f,1 )
+
+    #draw graph with labels
+    pos = nx.spring_layout(canvas)
+    nx.draw(canvas, pos)
+    node_labels = nx.get_node_attributes(canvas, 'desc')
+    nx.draw_networkx_labels(canvas, pos, labels=node_labels)
+    plt.show()
+
 def main():
     global top_func
+    global canvas
+    canvas = nx.DiGraph()
+
     file_list = get_filelist( sys.path[0]+"/src" )
     for f in file_list:
         src_file_obj = parse_file( f ) 
     
     print ( "[ROOT]",top_func.name)
-    function_tree ( top_func )  
+    print_func_relationship ( top_func )
+
+    draw_func_relationship(top_func)
+
+    # draw_func_relationship()
     return 
 
-    # src_file_obj = parse_file( sys.path[0]+"/can_service.c" )
 #########
 if __name__ == "__main__":
     main()
