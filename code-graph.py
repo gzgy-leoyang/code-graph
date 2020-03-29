@@ -124,7 +124,8 @@ def scan_call_func(  graph,src_file_name ):
     ((\s*)((?!if|while|switch|for)\w+)(\s*)(\()) 
     '''
     rgl_keyword_nest_str = r'''
-    ((\s*)(if|while|switch|for)(\s*)(\()(\s*)(\S*)(\s*)(\)))
+    # ((\s*)(if|while|switch|for)(\s*)(\()(\s*)(\S*)(\s*)(\)))
+    ((\s*)(if|while|switch|for)(\s*)(\()(\s*)(\W*)(\s*)(\()(\s*)(\w*)(\s*)(\))(\s*)(\)))
     '''
 
 
@@ -171,14 +172,6 @@ def scan_call_func(  graph,src_file_name ):
                     n = get_func_name( line )
                     if def_func != None :
                         call_func_regist( graph, def_func, n )
-                # elif call_void_func_patten.match( line ):
-                #     n =  get_void_func_name( line )
-                #     if def_func != None :
-                #         call_func_regist( graph, def_func, n )
-                # elif call_inner_func_patten.match( line ):
-                #     n = get_inner_func_name( line )
-                #     if def_func != None :
-                #         call_func_regist( graph, def_func, n )
                 elif def_func_patten_end.match( line ):
                     scan_func_step = 0
                     def_func = None
@@ -334,23 +327,56 @@ def extend_relationship ( canvas, f, id ):
 #     nx.draw_networkx_labels(canvas, pos, labels=node_labels)
 #     plt.show()
 
+def not_empty(s):
+    return s and s.strip()
+
+def get_func_name_nest_in_keyword( str_list ):
+    mid_str = []
+    for s in str_list[0]:
+        if s != '' and s != " ":
+            mid_str.append(s)
+    mid_str2 = mid_str[1:-1]
+    equ_count = mid_str2.count("=")
+    if  equ_count != 0 :
+        return mid_str2[ mid_str2.index("=")+1]
+    else :
+        return mid_str2[ 0 ]
+
+def scan_keyword_nest_call_func(  graph,src_file_name ):
+    rgl_keyword_nest_str = r'''
+    ((\s*)(if|while|switch|for)(\s*)(\()(\s*)(\w*)(\s*)(=){,2}(\s*)(\w*)(\s*)(\()(\s*)(\S*)(\s*)(\))(\s*)(\)))
+    '''
+    file_path  = "/home/dd/py-demo/code-graph/src/a.c"
+    scan_func_step = 0
+    with open( file_path ) as fd:
+        call_keyword_nest_patten = re.compile(rgl_keyword_nest_str,re.X) 
+
+        def_func =  None 
+        for line in fd:
+            if call_keyword_nest_patten.match ( line):
+                str_list = re.findall(r"(\()(\s*)(\w*)(\s*)(=){,2}(\s*)(\w+)(\s*)(\()(\s*)(\S*)(\s*)(\))(\s*)(\))", line)
+                print ("Func Name:", get_func_name_nest_in_keyword( str_list ) ) 
+    return 
+
+
 def main():
-    file_list = get_filelist( sys.path[0]+"/src" )    
+    # print ("main:")
+    # file_list = get_filelist( sys.path[0]+"/src" )    
     graph = Code_graph()
+    test_scan_call_func(  graph,"dd" )
     ## 第一次遍历，扫描所有文件，将定义函数添加到列表 all_func_list
-    for f in file_list:
-        # print ("SCAN def_func from : ", f )
-        scan_def_func( graph, f )
+    # for f in file_list:
+    #     scan_def_func( graph, f )
     
     ## 第二次遍历，扫描所有文件，将定义函数内的“被调用函数”登记到
     ## “调用函数”(定义函数) 的 call_func_name_list 中
     ## 如果是库函数，将会在此过程被添加到 all_func_list 
     ## 此过程，还将完成：记录函数的“被调用计数called”和“调用计数calling”
-    for f in file_list:
-        print ("SCAN call_func from : ", f )
-        scan_call_func( graph, f )
+    # for f in file_list:
+    #     print ("SCAN call_func from : ", f )
+    #     scan_call_func( graph, f )
 
-    print_func_list( graph )
+    # print_func_list( graph )
 
     ## 绘制所有的“顶层函数”的调用关系
     # root_func_list = []
