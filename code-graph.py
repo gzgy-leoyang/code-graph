@@ -97,11 +97,45 @@ def call_func_regist( graph, def_func,func_name ):
         def_func.calling += 1
         def_func.call_func_name_list.append( func_name )
 
+####
+def check_call_func(  line ):    
+    rgl_genernal_call_func_str = r'''
+    (
+    (\s*\w+\s*)? # 变量类型
+    (\s*\w+\s*\=\s*)? #变量名=
+    (?!(if|while|switch|for))\w+\s*(\() # 排除 keyword,函数名(
+    ( \&? \-? \"?\s*\w+\[?\s*\]?\W*\s*\"? ,?)*\S*\s*(\))\s*; # 参数列表,...)
+    )
+    '''
+    call_func_patten = re.compile ( rgl_genernal_call_func_str,re.X )
+
+    rgl_keyword_nest_call_func_str = r'''
+    (
+        (\s*(if|while|switch|for)\s* (\()) # keyword ( 
+        ((\s*\w*\s*=) | (\s*\w*\s*==)) # 变量名=
+        (\s*\w+\s*)(\()  #函数名(
+        ((\s*\w+\s*,?\s)* (\))) # 参数列表)
+        (\s*)(\))
+    )
+    '''
+    call_keyword_nest_patten = re.compile ( rgl_keyword_nest_call_func_str,re.X )
+    if call_keyword_nest_patten.match ( line):
+        print ( "Nest Call 22: ",line )
+        # str_list = re.findall(r"\((.+?)\(", line)
+        # # str_list = re.findall(r"(\() ( (\s*\w*\s*=) | (\s*\w*\s*==\s*) )? (\s*\w+\s*) (\() (\s*\w+\s*,?)* (\)) (\s*) (\))", line)
+        # return  get_func_name_nest_in_keyword( str_list )
+    elif call_func_patten.match ( line ):
+        # print ( "Genernal Call : ",line )
+        str_list = re.findall(r"(\=?\s*.+?)\(", line )
+        print ( "str_list[] ",str_list)
+
+        return str_list[0].strip()
+    return None
+
 ##############################
 ## 扫描文件内的调用函数，将被调用函数登记到调用者名下
 def scan_call_func(  graph,src_file_name ):
-    global top_func
-    global all_func_list
+
     # 函数头，类型1，花括号与函数名不同行
     rgl_def_func_name = r'''
     (((\s*)(static)(\s*)) | (\s*))  
@@ -114,67 +148,44 @@ def scan_call_func(  graph,src_file_name ):
     (\s*)(\*)?(\s*)?(restrict)?(\s*)?(\w+)(\s*)?(\,)?(\n)?(.*)?)*# 最后的*表示有多个参数
     (((\s*)(\))(\s*)){1})                                                                         # 函数结束小括号
     '''
+    # 函数头
+    def_func_patten_name = re.compile(rgl_def_func_name,re.X)
 
     rgl_def_func_end = r'''
     (})(\s*) # 函数结束"}"
     '''
-    ## 匹配函数调用
-    rgl_call_func = r'''
-    ((((\s*)(\w+))?(\s*)(\w+)(\s*)(=))?)
-    ((\s*)((?!if|while|switch|for)\w+)(\s*)(\()) 
-    '''
-    rgl_keyword_nest_str = r'''
-    # ((\s*)(if|while|switch|for)(\s*)(\()(\s*)(\S*)(\s*)(\)))
-    ((\s*)(if|while|switch|for)(\s*)(\()(\s*)(\W*)(\s*)(\()(\s*)(\w*)(\s*)(\))(\s*)(\)))
-    '''
-
-
-    ## 匹配函数调用（无返回）
-    # rgl_call_void_func = r'''
-    # ((\s*)((?!if|while|switch|for)\w+)(\s*)(\())# "空白字符(>=0)-单词字符(>1)-空格字符(>=0)-( " (0次或1次)识别函数名
-    # '''
-    
-    ## 匹配函数调用（if,while 嵌套调用函数）
-    # "空白-if-空白-"("-"空白"-单词字符(>1)-空格字符(>=0)-"(" (0次或1次)识别函数名
-    # rgl_call_void_func_inner = r'''
-    # ((\s*)(if)(\s*)(\()(\s*)(\w*)(\s*)((=){0,2})(\s*)(\w+)(\s*)(\()) 
-    # '''
+    # 函数尾
+    def_func_patten_end = re.compile(rgl_def_func_end,re.X)
     
     file_path  = src_file_name
     scan_func_step = 0
     with open( file_path ) as fd:
-        # 函数头
-        def_func_patten_name = re.compile(rgl_def_func_name,re.X)
-        # 调用函数
-        ## 类型1，有返回参数
-        call_func_patten = re.compile(rgl_call_func,re.X)
-        ## 类型2，无参数返回
-        call_keyword_nest_patten = re.compile(rgl_keyword_nest_str,re.X) 
-        ## 类型3，嵌套调用函数
-        # call_inner_func_patten = re.compile(rgl_call_void_func_inner,re.X) 
-        # 函数尾
-        def_func_patten_end = re.compile(rgl_def_func_end,re.X)
-
         def_func =  None 
         for line in fd:
             if scan_func_step == 0 :
                 if def_func_patten_name.match( line ):
                     scan_func_step = 1
                     n = get_func_name( line )
+                    print ( "Function:",n )
                     # 定位函数头：调用者
                     def_func = get_func_obj_by_name( graph, n )
             elif scan_func_step==1:
-                if call_keyword_nest_patten.match ( line ):
-                    print ( line )
-                    get_nest_str( line )
-                elif call_func_patten.match( line ):
-                    # 函数内定位：被调用者
-                    n = get_func_name( line )
-                    if def_func != None :
-                        call_func_regist( graph, def_func, n )
+                n = check_call_func(  line )
+                if n != None:
+                    print ( "   CALL :",n )
                 elif def_func_patten_end.match( line ):
                     scan_func_step = 0
-                    def_func = None
+                    def_func = None 
+
+                # if call_keyword_nest_patten.match ( line ):
+                #     print ( line )
+                #     get_nest_str( line )
+                # elif call_func_patten.match( line ):
+                #     # 函数内定位：被调用者
+                #     n = get_func_name( line )
+                #     if def_func != None :
+                #         call_func_regist( graph, def_func, n )
+                
     return 
 
 ########################
@@ -331,47 +342,60 @@ def not_empty(s):
     return s and s.strip()
 
 def get_func_name_nest_in_keyword( str_list ):
-    mid_str = []
-    for s in str_list[0]:
-        if s != '' and s != " ":
-            mid_str.append(s)
-    mid_str2 = mid_str[1:-1]
-    equ_count = mid_str2.count("=")
-    if  equ_count != 0 :
-        return mid_str2[ mid_str2.index("=")+1]
-    else :
-        return mid_str2[ 0 ]
+    ss = str_list[0].split()
+    # l = ss.__len__
+
+    return
+    # mid_str = []
+    # #去除空格内容
+    # for s in str_list[0]:
+    #     if s != '' and s != " ":
+    #         mid_str.append(s)
+    # # 截掉头尾的内容
+    # mid_str2 = mid_str[1:-1]
+
+    # print (mid_str2 )
+
+    # if mid_str2.count("==") > 0 :
+    #     return mid_str2[ mid_str2.index("==")+1]
+
+    # if  mid_str2.count("=") > 0 :
+    #     return mid_str2[ mid_str2.index("=")+1]
+    
+    # return mid_str2[ 0 ]
 
 def scan_keyword_nest_call_func(  graph,src_file_name ):
-    rgl_keyword_nest_str = r'''
-    ((\s*)(if|while|switch|for)(\s*)(\()(\s*)(\w*)(\s*)(=){,2}(\s*)(\w*)(\s*)(\()(\s*)(\S*)(\s*)(\))(\s*)(\)))
-    '''
+    
     file_path  = "/home/dd/py-demo/code-graph/src/a.c"
     scan_func_step = 0
     with open( file_path ) as fd:
-        call_keyword_nest_patten = re.compile(rgl_keyword_nest_str,re.X) 
-
         def_func =  None 
         for line in fd:
-            if call_keyword_nest_patten.match ( line):
-                str_list = re.findall(r"(\()(\s*)(\w*)(\s*)(=){,2}(\s*)(\w+)(\s*)(\()(\s*)(\S*)(\s*)(\))(\s*)(\))", line)
-                print ("Func Name:", get_func_name_nest_in_keyword( str_list ) ) 
+            name = check_call_func(  line )
+            if name != None:
+                print ( "NAME:",name)    
     return 
+
+
 
 
 def main():
     # print ("main:")
-    # file_list = get_filelist( sys.path[0]+"/src" )    
+    file_list = get_filelist( sys.path[0]+"/src" )    
     graph = Code_graph()
-    test_scan_call_func(  graph,"dd" )
+    # scan_keyword_nest_call_func(  graph,"dd" )
     ## 第一次遍历，扫描所有文件，将定义函数添加到列表 all_func_list
-    # for f in file_list:
-    #     scan_def_func( graph, f )
+
+    # scan_def_func( graph, "/home/dd/py-demo/code-graph/src/can_service.c")
+    for f in file_list:
+        scan_def_func( graph, f )
     
     ## 第二次遍历，扫描所有文件，将定义函数内的“被调用函数”登记到
     ## “调用函数”(定义函数) 的 call_func_name_list 中
     ## 如果是库函数，将会在此过程被添加到 all_func_list 
     ## 此过程，还将完成：记录函数的“被调用计数called”和“调用计数calling”
+    scan_call_func( graph, "/home/dd/py-demo/code-graph/src/can_service.c")
+
     # for f in file_list:
     #     print ("SCAN call_func from : ", f )
     #     scan_call_func( graph, f )
