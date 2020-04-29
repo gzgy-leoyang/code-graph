@@ -111,25 +111,22 @@ def check_call_func(  line ):
 
     rgl_keyword_nest_call_func_str = r'''
     (
-        (\s*(if|while|switch|for)\s* (\()) # keyword ( 
-        ((\s*\w*\s*=) | (\s*\w*\s*==)) # 变量名=
-        (\s*\w+\s*)(\()  #函数名(
-        ((\s*\w+\s*,?\s)* (\))) # 参数列表)
-        (\s*)(\))
+        (\s*(if|while|switch)\s*\( ) # keyword (
+        ( (\s*\w*\s*=) | (\s*\w*\s*==))? # 变量名=
+        (\s*\w+\s*)\(
+        .*\)(\s*\w*\s*==)?.*
     )
     '''
     call_keyword_nest_patten = re.compile ( rgl_keyword_nest_call_func_str,re.X )
+    
     if call_keyword_nest_patten.match ( line):
-        print ( "Nest Call 22: ",line )
-        # str_list = re.findall(r"\((.+?)\(", line)
-        # # str_list = re.findall(r"(\() ( (\s*\w*\s*=) | (\s*\w*\s*==\s*) )? (\s*\w+\s*) (\() (\s*\w+\s*,?)* (\)) (\s*) (\))", line)
-        # return  get_func_name_nest_in_keyword( str_list )
+        str_list = re.findall(r"\w+\s*\(", line)
+        name_str  = str_list[1].strip()
+        return name_str[:-1]
     elif call_func_patten.match ( line ):
-        # print ( "Genernal Call : ",line )
-        str_list = re.findall(r"(\=?\s*.+?)\(", line )
-        print ( "str_list[] ",str_list)
-
-        return str_list[0].strip()
+        str_list = re.findall(r"\w+?\s*\(", line )
+        name_str  = str_list[0].strip()
+        return name_str[:-1]
     return None
 
 ##############################
