@@ -85,36 +85,29 @@ def call_func_regist( graph, def_func,func_name ):
 
 ####
 ## 解析调用函数，包括：一般调用和关键词嵌套调用，返回函数名
-def check_call_func(  line ):    
-    # rgl_genernal_call_func_str = r'''
-    # (
-    # (\s*\w+\s*)? # 变量类型
-    # (\s*\w+\s*\=\s*)? #变量名=
-    # (?!(if|while|switch|for))\w+\s*(\() # 排除 keyword,函数名(
-    # ( \&? \-? \"?\s*\w+\[?\s*\]?\W*\s*\"? ,?)*\S*\s*(\))\s*; # 参数列表,...)
-    # )
-    # '''
+def check_call_func(  line ):
     rgl_genernal_call_func_str = r'''
-    (
-    (\s*\w+\s*)? # 变量类型
-    (\s*\w+\s*\=\s*)? #变量名=
-    ( \( .* \) )?
-    (?!(if|while|switch|for))\w+\s*(\() # 排除 keyword,函数名(
-    ( \&? \-? \"?\s*\w+\[?\s*\]?\W*\s*\"? ,?)*\S*\s*(\))\s*; # 参数列表,...)
-    )
+        (\w+=)? (\( .* \))?
+        (?!(if|while|switch|for))\w+\(.*\);
     '''
     call_func_patten = re.compile ( rgl_genernal_call_func_str,re.X )
 
     rgl_keyword_nest_call_func_str = r'''
-    (
-        (\s*(if|while|switch)\s*\( ) # keyword (
-        ( (\s*\w*\s*=) | (\s*\w*\s*==) | (\s*\w*\s*(<|(<=)))| (\s*\w*\s*(>|(>=))))? # 变量名=
-        (\s*\w+\s*)\(+ # 函数名(
-        .*\) \s* ((==) | (<|(<=)) | (>|(>=)) )?.* # ) ==
-    )
+        (if|while|switch)\( # keyword (
+        (\w+(=|==|<|<=|>|>=))? # 变量名=
+        \w+\( # 函数名(
+        .+\)((=|==|<|<=|>|>=)\w+)?\){
     '''
     call_keyword_nest_patten = re.compile ( rgl_keyword_nest_call_func_str,re.X )
-    
+
+    rgl_no_call_func_str = r'''
+    ^if\(\w+=\w+\){
+    '''
+    no_call_patten = re.compile ( rgl_no_call_func_str,re.X )
+
+    # 去掉空格,加快匹配速度
+    line = line.strip() 
+    line = line.replace(" ","")
     if call_keyword_nest_patten.match ( line):
         str_list = re.findall(r"\w+\s*\(", line)
         name_str  = str_list[1].strip()
@@ -123,6 +116,10 @@ def check_call_func(  line ):
         str_list = re.findall(r"\w+?\s*\(", line )
         name_str  = str_list[0].strip()
         return name_str[:-1]
+    elif no_call_patten.match ( line ):
+        pass
+    else:
+        return None
     return None
 
 ##############################
@@ -158,13 +155,14 @@ def scan_call_func(  graph,src_file_name ):
                 if def_func_patten_name.match( line ):
                     scan_func_step = 1
                     n = get_func_name( line )
-                    print ( "Function:",n )
+                    print ( "Define:",n )
                     # 定位函数头：调用者
                     def_func = get_func_obj_by_name( graph, n )
             elif scan_func_step==1:
+                # print ("Line:",line)
                 n = check_call_func(  line )
                 if n != None:
-                    print ( "   CALL :",n )
+                    print ( "   Call :",n )
                     call_func_regist( graph, def_func, n )
                 elif def_func_patten_end.match( line ):
                     scan_func_step = 0
@@ -334,9 +332,11 @@ def main():
     ## “调用函数”(定义函数) 的 call_func_name_list 中
     ## 如果是库函数，将会在此过程被添加到 all_func_list 
     ## 此过程，还将完成：记录函数的“被调用计数called”和“调用计数calling”
-    scan_call_func( graph, "/home/dd/py-demo/code-graph/src/can_service.c")
+    # scan_call_func( graph, "/home/dd/py-demo/code-graph/src/can_service.c")
+    scan_call_func( graph, "/home/dd/py-demo/code-graph/src/demo.c")
+
     # for f in file_list:
-    #     print ("SCAN call_func from : ", f )
+    #     print ("File : ", f )
     #     scan_call_func( graph, f )
 
     # print_func_list( graph )
