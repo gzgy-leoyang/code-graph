@@ -47,6 +47,10 @@ src_file_list=[]
 ## 所有函数列表，包括：定义函数，库函数
 all_func_list = []
 
+# # 函数头
+# rgl_def_func_head = r'''^(static)?((void)|(char)|(short)|(int)|(float)|(long)|(double))(\**)?\w+\(.*\)(?!;)'''
+# def_func_head_patten = re.compile(rgl_def_func_head,re.X)
+
 # 函数头
 rgl_def_func_head = r'''^(static)?((void)|(char)|(short)|(int)|(float)|(long)|(double))(\**)?\w+\(.*\)(?!;)'''
 def_func_head_patten = re.compile(rgl_def_func_head,re.X)
@@ -54,6 +58,54 @@ def_func_head_patten = re.compile(rgl_def_func_head,re.X)
 # 函数尾
 rgl_def_func_end = r'''^}(?!;)'''
 def_func_end_patten = re.compile(rgl_def_func_end,re.X)
+
+
+# 分级分类
+# 首先，检查不包含空格的语句中是否包含 xxx(xxxx)
+# 如果是，则进一步判断是函数定义还是调用 
+
+## 带;号，声明或是调用
+## 不带;号，定义，需要区分 if/while/switch
+def define_something( src_file_name ):
+    ## xxx() ,无空格
+    rgl_level_1 = r'''.*\w+\(.*\)'''
+    level_1_patten = re.compile(rgl_level_1,re.X)
+
+    # 函数定义，xxx func() ,无；and 有空格
+    rgl_define_fun = r'''.*\s+\w+\(.*\)'''
+    rgl_define_fun_patten = re.compile(rgl_define_fun,re.X)
+
+    # 函数调用, xxx = func () ; or func() ; 包含空格
+    rgl_call_fun = r'''(.*\s*\w+\s*=\s*)?\s*\S*\w+\s*\(.*\)'''
+    rgl_call_fun_patten = re.compile(rgl_call_fun,re.X)
+    
+    # 调用
+    # int* a = (int*)malloc(sizeof(int)); ...error
+
+    # rgl_something_head = r'''\w*(\**)?\w+\(.*\)(?!;)'''
+    # something_head_patten = re.compile(rgl_something_head,re.X)    
+    with open( src_file_name ) as fd:
+        for line in fd:
+            line_0 = line
+            line = line.strip() 
+            line = line.replace(" ","")
+            if level_1_patten.match ( line ):
+                # print ( "Level_1 : ",line_0 )
+                if line.__contains__(";"):
+                    # 有；，函数声明和调用
+                    if rgl_call_fun_patten.match ( line_0 ):
+                        print ( "调用",line_0 )
+                    else :
+                        print ( "声明",line_0 )
+                else:
+                    # xxx(),无；符号，可能是函数定义，也可能是 if/while/switch()
+                    if rgl_define_fun_patten.match ( line_0 ):
+                        print ( "定义",line_0 )
+                    else :
+                        print ( "其他",line_0 )
+
+
+    return 0
 
 
 ## 将输入的被调用函数登记到调用者函数
@@ -194,8 +246,7 @@ def scan_def_func( graph, src_file_name ):
                 if def_func_head_patten.match( line ):
                     scan_func_step = 1
                     n = get_def_func_name( line_0 )
-                    def_func = Function( n )
-                    print(n)
+                    def_func = Function( n )# print(n)
                     def_func.start_line = current_line
                     def_func.parent_src_file = src_file_name
                     src_file.func_list.append( def_func )
@@ -311,11 +362,11 @@ def extend_relationship ( canvas, f, id ):
 
 def main():
     # print ("main:")
-    file_list = get_filelist( sys.path[0]+"/src" )    
-    graph = Code_graph()
-
-    scan_def_func( graph, "src/ttt.c" )
-    scan_call_func( graph, "src/ttt.c" )
+    define_something( "src/ttt.c" )
+    # file_list = get_filelist( sys.path[0]+"/src" )    
+    # graph = Code_graph()
+    # scan_def_func( graph, "src/ttt.c" )
+    # scan_call_func( graph, "src/ttt.c" )
 
 
     ## 第一次遍历，扫描所有文件，将定义函数添加到列表 all_func_list
@@ -330,14 +381,14 @@ def main():
     #     print ("File : ", f )
     #     scan_call_func( graph, f )
 
-    print_func_list( graph )
+    # print_func_list( graph )
 
-    # ## 绘制所有的“顶层函数”的调用关系
-    root_func_list = []
-    for f in graph.all_func_list :
-        if f.called == 0:
-            print ("CALLED_0 : ", f.name )
-            root_func_list.append(f)
+    # # ## 绘制所有的“顶层函数”的调用关系
+    # root_func_list = []
+    # for f in graph.all_func_list :
+    #     if f.called == 0:
+    #         print ("CALLED_0 : ", f.name )
+    #         root_func_list.append(f)
 
     # draw_root_func_relationship(  root_func_list[0] )
     # print ( " \nROOT Func : %s "%( f.name) )
