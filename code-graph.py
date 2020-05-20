@@ -63,34 +63,26 @@ def_func_end_patten = re.compile(rgl_def_func_end,re.X)
 # 分级分类
 # 首先，检查不包含空格的语句中是否包含 xxx(xxxx)
 # 如果是，则进一步判断是函数定义还是调用 
-
 ## 带;号，声明或是调用
 ## 不带;号，定义，需要区分 if/while/switch
 def define_something( src_file_name ):
-    ## xxx() ,无空格
+    
+    # xxx() ,无空格
     rgl_level_1 = r'''.*\w+\(.*\)'''
     level_1_patten = re.compile(rgl_level_1,re.X)
-
     # 函数定义，xxx func() ,无；and 有空格
     rgl_define_fun = r'''.*\s+\w+\(.*\)'''
     rgl_define_fun_patten = re.compile(rgl_define_fun,re.X)
-
     # 函数调用, xxx = func () ; or func() ; 包含空格
     rgl_call_fun = r'''(.*\s*\w+\s*=\s*)?\s*\S*\w+\s*\(.*\)'''
     rgl_call_fun_patten = re.compile(rgl_call_fun,re.X)
     
-    # 调用
-    # int* a = (int*)malloc(sizeof(int)); ...error
-
-    # rgl_something_head = r'''\w*(\**)?\w+\(.*\)(?!;)'''
-    # something_head_patten = re.compile(rgl_something_head,re.X)    
     with open( src_file_name ) as fd:
         for line in fd:
             line_0 = line
             line = line.strip() 
             line = line.replace(" ","")
             if level_1_patten.match ( line ):
-                # print ( "Level_1 : ",line_0 )
                 if line.__contains__(";"):
                     # 有；，函数声明和调用
                     if rgl_call_fun_patten.match ( line_0 ):
@@ -98,13 +90,23 @@ def define_something( src_file_name ):
                     else :
                         print ( "声明",line_0 )
                 else:
-                    # xxx(),无；符号，可能是函数定义，也可能是 if/while/switch()
-                    if rgl_define_fun_patten.match ( line_0 ):
-                        print ( "定义",line_0 )
-                    else :
-                        print ( "其他",line_0 )
-
-
+                    if line_0.__contains__("if") or line_0.__contains__("while") or line_0.__contains__("switch"):
+                        # 包含 "if"
+                        str_list = re.findall(r"\(.*\)", line_0)
+                        for str in str_list:
+                            str = str[2:-1] # 去掉头尾的 ( 和 ) 
+                        str_list = re.findall(r"\w+\(.*\)", str)
+                        for ss in str_list:
+                            print ( "key调用",ss)
+                            ss_list = re.findall(r"\w+", ss)
+                            print ( "...",ss_list)
+                    else:
+                        # 不包含 "if"
+                        if rgl_define_fun_patten.match ( line_0 ):
+                            print ( "定义",line_0 )
+                        else :
+                            str_list = re.findall(r"\(.*\)", line_0)
+                            print ( "其他",str_list )
     return 0
 
 
