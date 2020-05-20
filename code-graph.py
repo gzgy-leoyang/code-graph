@@ -108,6 +108,21 @@ def define_something( src_file_name ):
                             print ( "其他",str_list )
     return 0
 
+def xxx ( _str ):
+    str_list = re.findall ( r"\(.*\)" , _str)
+    str = str_list[0]
+    str = str[2:-1] # 去掉头尾的 ( 和 )
+
+    rgl_brackets = r'''.*\w+\(.*\)'''
+    rgl_brackets_patten = re.compile( rgl_brackets ,re.X )
+    # 去掉括号，判断内部是否符合"函数模式xyz()"
+    if rgl_brackets_patten.match ( str ):
+        str_list = re.findall ( r"\w+\(", str )
+        for str in str_list:
+            str = str[:-1]
+            print ( "调用:",str )
+
+
 def new_define_something( src_file_name ):
     
     # xxx() ,无空格
@@ -128,8 +143,7 @@ def new_define_something( src_file_name ):
             if level_1_patten.match ( line ):
                 if ( any ( keyword in line_0 for keyword in ["if", "switch", "while","for"] ) ):
                     # 关键词语句，进一步提取后再通过正则判断
-                    str_list = re.findall ( r"\(.*\)" ,  line_0 )
-                    print ( "keyword...",str_list )
+                    xxx( line_0 )
                 else :
                     if line.__contains__(";"):
                         # 有；，函数声明和调用
