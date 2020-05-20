@@ -108,6 +108,44 @@ def define_something( src_file_name ):
                             print ( "其他",str_list )
     return 0
 
+def new_define_something( src_file_name ):
+    
+    # xxx() ,无空格
+    rgl_level_1 = r'''.*\w+\(.*\)'''
+    level_1_patten = re.compile(rgl_level_1,re.X)
+    # 函数定义，xxx func() ,无；and 有空格
+    rgl_define_fun = r'''.*\s+\w+\(.*\)'''
+    rgl_define_fun_patten = re.compile(rgl_define_fun,re.X)
+    # 函数调用, xxx = func () ; or func() ; 包含空格
+    rgl_call_fun = r'''(.*\s*\w+\s*=\s*)?\s*\S*\w+\s*\(.*\)'''
+    rgl_call_fun_patten = re.compile(rgl_call_fun,re.X)
+    
+    with open( src_file_name ) as fd:
+        for line in fd:
+            line_0 = line
+            line = line.strip() 
+            line = line.replace(" ","")
+            if level_1_patten.match ( line ):
+                if ( any ( keyword in line_0 for keyword in ["if", "switch", "while","for"] ) ):
+                    # 关键词语句，进一步提取后再通过正则判断
+                    str_list = re.findall ( r"\(.*\)" ,  line_0 )
+                    print ( "keyword...",str_list )
+                else :
+                    if line.__contains__(";"):
+                        # 有；，函数声明和调用
+                        if rgl_call_fun_patten.match ( line_0 ):
+                            print ( "调用",line_0 )
+                        else :
+                            print ( "声明",line_0 )
+                    else:
+                        if rgl_define_fun_patten.match ( line_0 ):
+                            print ( "定义",line_0 )
+                        else :
+                            str_list = re.findall(r"\(.*\)", line_0)
+                            print ( "其他",str_list )
+    return 0
+
+
 
 ## 将输入的被调用函数登记到调用者函数
 def call_func_regist( graph, def_func,func_name ):
@@ -363,7 +401,7 @@ def extend_relationship ( canvas, f, id ):
 
 def main():
     # print ("main:")
-    define_something( "src/ttt.c" )
+    new_define_something( "src/ttt.c" )
     # file_list = get_filelist( sys.path[0]+"/src" )    
     # graph = Code_graph()
     # scan_def_func( graph, "src/ttt.c" )
