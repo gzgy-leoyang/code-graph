@@ -90,14 +90,13 @@ def define_something( src_file_name ):
                     else :
                         print ( "声明",line_0 )
                 else:
-                    if line_0.__contains__("if") or line_0.__contains__("while") or line_0.__contains__("switch"):
-                        # 包含 "if"
-                        str_list = re.findall(r"\(.*\)", line_0)
+                    if ( any ( keyword in line_0 for keyword in ["if", "switch", "while"] ) ):
+                        str_list = re.findall ( r"\(.*\)" ,  line_0 )
                         for str in str_list:
                             str = str[2:-1] # 去掉头尾的 ( 和 ) 
-                        str_list = re.findall(r"\w+\(.*\)", str)
+                        str_list = re.findall ( r"\w+\(.*\)", str )
                         for ss in str_list:
-                            print ( "key调用",ss)
+                            print ( "key调用",ss )
                             ss_list = re.findall(r"\w+", ss)
                             print ( "...",ss_list)
                     else:
