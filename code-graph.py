@@ -65,95 +65,74 @@ def_func_end_patten = re.compile(rgl_def_func_end,re.X)
 # 如果是，则进一步判断是函数定义还是调用 
 ## 带;号，声明或是调用
 ## 不带;号，定义，需要区分 if/while/switch
-def define_something( src_file_name ):
-    
-    # xxx() ,无空格
-    rgl_level_1 = r'''.*\w+\(.*\)'''
-    level_1_patten = re.compile(rgl_level_1,re.X)
-    # 函数定义，xxx func() ,无；and 有空格
-    rgl_define_fun = r'''.*\s+\w+\(.*\)'''
-    rgl_define_fun_patten = re.compile(rgl_define_fun,re.X)
-    # 函数调用, xxx = func () ; or func() ; 包含空格
-    rgl_call_fun = r'''(.*\s*\w+\s*=\s*)?\s*\S*\w+\s*\(.*\)'''
-    rgl_call_fun_patten = re.compile(rgl_call_fun,re.X)
-    
-    with open( src_file_name ) as fd:
-        for line in fd:
-            line_0 = line
-            line = line.strip() 
-            line = line.replace(" ","")
-            if level_1_patten.match ( line ):
-                if line.__contains__(";"):
-                    # 有；，函数声明和调用
-                    if rgl_call_fun_patten.match ( line_0 ):
-                        print ( "调用",line_0 )
-                    else :
-                        print ( "声明",line_0 )
-                else:
-                    if ( any ( keyword in line_0 for keyword in ["if", "switch", "while"] ) ):
-                        str_list = re.findall ( r"\(.*\)" ,  line_0 )
-                        for str in str_list:
-                            str = str[2:-1] # 去掉头尾的 ( 和 ) 
-                        str_list = re.findall ( r"\w+\(.*\)", str )
-                        for ss in str_list:
-                            print ( "key调用",ss )
-                            ss_list = re.findall(r"\w+", ss)
-                            print ( "...",ss_list)
-                    else:
-                        # 不包含 "if"
-                        if rgl_define_fun_patten.match ( line_0 ):
-                            print ( "定义",line_0 )
-                        else :
-                            str_list = re.findall(r"\(.*\)", line_0)
-                            print ( "其他",str_list )
-    return 0
-
-def xxx ( _str ):
+def keyword_call ( _str ):
+    fun_list = []
     str_list = re.findall ( r"\(.*\)" , _str)
     str = str_list[0]
-    str = str[2:-1] # 去掉头尾的 ( 和 )
-
-    rgl_brackets = r'''.*\w+\(.*\)'''
-    rgl_brackets_patten = re.compile( rgl_brackets ,re.X )
-    # 去掉括号，判断内部是否符合"函数模式xyz()"
+    str = str[2:-1] # 去掉 if/while/switch ( ... )，抽取其中的内容
+    rgl_brackets_patten = re.compile( r'''.*\w+\s*\(.*\)''' ,re.X )
     if rgl_brackets_patten.match ( str ):
-        str_list = re.findall ( r"\w+\(", str )
-        for str in str_list:
+        # 其中内容确实有函数特征，抽取符合函数部分
+        str_list = re.findall ( r"\w+\s*\(", str )
+        for str in str_list: ## 如果嵌套调用，就处理多个符合 xxx( 的字符串
             str = str[:-1]
-            print ( "调用:",str )
+            fun_list.append( str )
+        # print ( "调用:",fun_list )
+    return fun_list
 
+def get_name( _str ):
+    fun_list = []
+    str_list = re.findall ( r"\w+\s*\(" , _str )
+    for str in str_list :
+        str = str[:-1]
+        fun_list.append(str)
+    # print ( fun_list )
+    return fun_list
 
-def new_define_something( src_file_name ):
+def new_define_something( graph , src_file_name ):
+    level_1_patten = re.compile( r'''.*\w+\(.*\)''' ,re.X) # xxx() ,无空格
+    rgl_define_fun_patten = re.compile( r'''.*\s+\w+\s*\(.*\)''' ,re.X) # 函数定义，xxx func() ,无；and 有空格
+    rgl_call_fun_patten = re.compile( r'''(.*\w+\s*=\s*)?(\(.*\))?\s*\w+\s*\(.*\)''' ,re.X) # 函数调用, xxx = func () ; or func() ; 包含空格
     
-    # xxx() ,无空格
-    rgl_level_1 = r'''.*\w+\(.*\)'''
-    level_1_patten = re.compile(rgl_level_1,re.X)
-    # 函数定义，xxx func() ,无；and 有空格
-    rgl_define_fun = r'''.*\s+\w+\(.*\)'''
-    rgl_define_fun_patten = re.compile(rgl_define_fun,re.X)
-    # 函数调用, xxx = func () ; or func() ; 包含空格
-    rgl_call_fun = r'''(.*\s*\w+\s*=\s*)?\s*\S*\w+\s*\(.*\)'''
-    rgl_call_fun_patten = re.compile(rgl_call_fun,re.X)
+    current_line = 0
+    def_func = None
+    src_file = Src_file( src_file_name )
+    graph.src_file_list.append( src_file )
     
+    print ( "   File :", src_file_name )
     with open( src_file_name ) as fd:
         for line in fd:
+            current_line += 1
             line_0 = line
             line = line.strip() 
             line = line.replace(" ","")
-            if level_1_patten.match ( line ):
+            # '''.*\w+\(.*\)''' ,去掉空格的语句，符合 xxx() 模式，
+            # 进一步判断是函数定义，声明，调用或是if/while/swtich/for
+            if level_1_patten.match ( line ):  
                 if ( any ( keyword in line_0 for keyword in ["if", "switch", "while","for"] ) ):
                     # 关键词语句，进一步提取后再通过正则判断
-                    xxx( line_0 )
+                    keyword_call ( line_0 )
                 else :
+                    # 函数定义，声明，调用
                     if line.__contains__(";"):
                         # 有；，函数声明和调用
                         if rgl_call_fun_patten.match ( line_0 ):
-                            print ( "调用",line_0 )
+                            n = get_name( line_0 )
+                            print ( "   Call :",n )
+                            if ( def_func != None ):
+                                def_func.calling += 1
+                                def_func.call_func_name_list.append( n )
                         else :
-                            print ( "声明",line_0 )
+                            print ( "Declare : ",line_0 )
                     else:
                         if rgl_define_fun_patten.match ( line_0 ):
-                            print ( "定义",line_0 )
+                            n = get_name( line_0 )
+                            print ( "Define : ",n )
+                            def_func = Function( n )
+                            def_func.start_line = current_line
+                            def_func.parent_src_file = src_file_name
+                            src_file.func_list.append( def_func )
+                            graph.all_func_list.append(def_func)
                         else :
                             str_list = re.findall(r"\(.*\)", line_0)
                             print ( "其他",str_list )
@@ -415,16 +394,15 @@ def extend_relationship ( canvas, f, id ):
 
 def main():
     # print ("main:")
-    new_define_something( "src/ttt.c" )
-    # file_list = get_filelist( sys.path[0]+"/src" )    
-    # graph = Code_graph()
-    # scan_def_func( graph, "src/ttt.c" )
-    # scan_call_func( graph, "src/ttt.c" )
+    file_list = get_filelist( sys.path[0]+"/src" )    
+    graph = Code_graph()
+    # new_define_something( graph ,"src/ttt.c" )
 
 
     ## 第一次遍历，扫描所有文件，将定义函数添加到列表 all_func_list
-    # for f in file_list:
-    #     scan_def_func( graph, f )
+    for f in file_list:
+        new_define_something( graph ,f )
+        #scan_def_func( graph, f )
     
     # ## 第二次遍历，扫描所有文件，将定义函数内的“被调用函数”登记到
     # ## “调用函数”(定义函数) 的 call_func_name_list 中
