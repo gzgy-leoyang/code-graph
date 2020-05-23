@@ -47,19 +47,6 @@ src_file_list=[]
 ## 所有函数列表，包括：定义函数，库函数
 all_func_list = []
 
-# # 函数头
-# rgl_def_func_head = r'''^(static)?((void)|(char)|(short)|(int)|(float)|(long)|(double))(\**)?\w+\(.*\)(?!;)'''
-# def_func_head_patten = re.compile(rgl_def_func_head,re.X)
-
-# 函数头
-rgl_def_func_head = r'''^(static)?((void)|(char)|(short)|(int)|(float)|(long)|(double))(\**)?\w+\(.*\)(?!;)'''
-def_func_head_patten = re.compile(rgl_def_func_head,re.X)
-
-# 函数尾
-rgl_def_func_end = r'''^}(?!;)'''
-def_func_end_patten = re.compile(rgl_def_func_end,re.X)
-
-
 # 分级分类
 # 首先，检查不包含空格的语句中是否包含 xxx(xxxx)
 # 如果是，则进一步判断是函数定义还是调用 
@@ -93,19 +80,25 @@ def new_define_something( graph , src_file_name ):
     level_1_patten = re.compile( r'''.*\w+\(.*\)''' ,re.X) # xxx() ,无空格
     rgl_define_fun_patten = re.compile( r'''.*\s+\w+\s*\(.*\)''' ,re.X) # 函数定义，xxx func() ,无；and 有空格
     rgl_call_fun_patten = re.compile( r'''(.*\w+\s*=\s*)?(\(.*\))?\s*\w+\s*\(.*\)''' ,re.X) # 函数调用, xxx = func () ; or func() ; 包含空格
-    
+    rgl_comment_patten = re.compile( r'''^//.*''' ,re.X)
+    rgl_mocao_patten = re.compile( r'''^\#.*''' ,re.X)
+
     current_line = 0
     def_func = None
     src_file = Src_file( src_file_name )
     graph.src_file_list.append( src_file )
     
-    print ( "   File :", src_file_name )
+    print ( "\n< File > ", src_file_name )
     with open( src_file_name ) as fd:
         for line in fd:
             current_line += 1
             line_0 = line
             line = line.strip() 
             line = line.replace(" ","")
+            if rgl_comment_patten.match ( line ):
+                continue
+            if rgl_mocao_patten.match ( line ):
+                continue
             # '''.*\w+\(.*\)''' ,去掉空格的语句，符合 xxx() 模式，
             # 进一步判断是函数定义，声明，调用或是if/while/swtich/for
             if level_1_patten.match ( line ):  
@@ -138,160 +131,6 @@ def new_define_something( graph , src_file_name ):
                             print ( "其他",str_list )
     return 0
 
-
-
-## 将输入的被调用函数登记到调用者函数
-def call_func_regist( graph, def_func,func_name ):
-    # 以被调用者函数名，在总函数列表中查找到这个被调用函数对象
-    func = get_func_obj_by_name( graph, func_name )
-    if func == None :
-        # 没有定义过，但被调用，属于库函数
-        # new 一个函数对象，并加入总函数对象列表，
-        # 该函数的被调用计数加1，但该对象的调用函数名为空
-        # 调用计数也会保持为0
-        func = Function( func_name )
-        func.called += 1
-        graph.all_func_list.append ( func )
-    else:
-        # 属于已定义函数，将该函数的被调用计数加1
-        func.called += 1
-    
-    # 被调用记录
-    called_marked  = 0
-    for fx in func.called_func_name_list :
-        if fx == def_func.name :
-            called_marked += 1
-    if called_marked == 0:
-        func.called_func_name_list.append( def_func.name )
-
-    # 遍历当前定义函数的调用函数列表，检查是否已经登记调用，排除一个定义函数中多次调用同一函数的情况
-    marked  = 0
-    for fx_name in def_func.call_func_name_list :
-        if fx_name == func_name :
-            marked += 1
-    if marked == 0 :
-        # 没有被登记过
-        # 调用者的调用计数加1,被调用者函数名加入调用者的列表
-        def_func.calling += 1
-        def_func.call_func_name_list.append( func_name )
-
-####
-## 解析调用函数，包括：一般调用和关键词嵌套调用，返回函数名
-def check_call_func(  line ):
-    rgl_genernal_call_func_str = r'''
-        (\w+=)? (\( .* \))?
-        (?!(if|while|switch|for))\w+\(.*\);
-    '''
-    call_func_patten = re.compile ( rgl_genernal_call_func_str,re.X )
-
-    rgl_keyword_nest_call_func_str = r'''
-        (if|while|switch)\( # keyword (
-        (\w+(=|==|<|<=|>|>=))? # 变量名=
-        \w+\( # 函数名(
-        .+\)((=|==|<|<=|>|>=)\w+)?\){
-    '''
-    call_keyword_nest_patten = re.compile ( rgl_keyword_nest_call_func_str,re.X )
-
-    rgl_no_call_func_str = r'''
-    ^if\(\w+=\w+\){
-    '''
-    no_call_patten = re.compile ( rgl_no_call_func_str,re.X )
-
-    # 去掉空格,加快匹配速度
-    line = line.strip() 
-    line = line.replace(" ","")
-    if call_keyword_nest_patten.match ( line):
-        str_list = re.findall(r"\w+\s*\(", line)
-        name_str  = str_list[1].strip()
-        return name_str[:-1]
-    elif call_func_patten.match ( line ):
-        str_list = re.findall(r"\w+?\s*\(", line )
-        name_str  = str_list[0].strip()
-        return name_str[:-1]
-    elif no_call_patten.match ( line ):
-        pass
-    else:
-        return None
-    return None
-
-def get_call_func_name( ll ):
-    str_list = re.findall(r"(.+?)\(", ll)  # 提取"("之前的字符
-    list  = str_list[0].split(' ')
-    if list.__len__() == 1 :
-        name = list[0].strip()
-    else:
-        name = list[list.__len__()-1].strip()
-    return name
-
-## 扫描文件内的调用函数，将被调用函数登记到调用者名下
-def scan_call_func(  graph,src_file_name ):
-    file_path  = src_file_name
-    scan_func_step = 0
-    with open( file_path ) as fd:
-        def_func =  None 
-        for line in fd:
-            #用原始字符串进行函数名的分离，保留空格信息，有利于分段
-            line_0 = line
-            #用无空格的字符串进行匹配判断,这样可以加快匹配过程
-            line = line.strip().replace(" ","")   
-            if scan_func_step == 0 :
-                if def_func_head_patten.match( line ):
-                    scan_func_step = 1
-                    n = get_call_func_name( line_0 )
-                    print ( "Define:",n )
-                    # 定位函数头：调用者
-                    def_func = get_func_obj_by_name( graph, n )
-            elif scan_func_step==1:
-                n = check_call_func(  line )
-                if n != None:
-                    print ( "   Call :",n )
-                    call_func_regist( graph, def_func, n )
-                elif def_func_end_patten.match( line_0 ):
-                    scan_func_step = 0
-                    def_func = None
-    return 
-
-def get_def_func_name( ll ):
-    str_list = re.findall(r"(.+?)\(", ll)  # 提取"("之前的字符
-    list  = str_list[0].split(' ')
-    if list.__len__() == 1 :
-        name = list[0].strip()
-    else:
-        name = list[list.__len__()-1].strip()
-    return name
-
-def scan_def_func( graph, src_file_name ):
-    file_path  = src_file_name
-    scan_func_step = 0
-    current_line = 0
-    new_func = None
-    with open( file_path ) as fd:
-        src_file = Src_file( src_file_name )
-        graph.src_file_list.append( src_file )
-        for line in fd:
-            #用原始字符串进行函数名的分离，保留空格信息，有利于分段
-            line_0 = line
-            #用无空格的字符串进行匹配判断,这样可以加快匹配过程
-            line = line.strip().replace(" ","")
-            current_line += 1
-            if scan_func_step == 0 :
-                if def_func_head_patten.match( line ):
-                    scan_func_step = 1
-                    n = get_def_func_name( line_0 )
-                    def_func = Function( n )# print(n)
-                    def_func.start_line = current_line
-                    def_func.parent_src_file = src_file_name
-                    src_file.func_list.append( def_func )
-                    graph.all_func_list.append(def_func)
-            elif scan_func_step == 1:
-                if def_func_end_patten.match( line_0 ):
-                    scan_func_step = 0
-                    def_func.end_line = current_line
-                    def_func = None
-    return src_file.func_list.__len__()
-
-
-##################
 ## 遍历所有文件，记录 c 文件
 def get_filelist(dir):
     Filelist = []
@@ -301,128 +140,14 @@ def get_filelist(dir):
                 Filelist.append(os.path.join(home, filename))
     return Filelist
 
-####################################
-## 由 函数名，返回函数对象
-def get_func_obj_by_name( graph,func_name ):
-    func_obj = None
-    for f in graph.all_func_list :
-        if func_name == f.name :
-            return f
-    return None
-
-#################
-## 打印函数调用树
-layer_counter = 0
-def print_func_relationship ( f ):
-    global layer_counter 
-    if f.call_func_list.__len__() != 0 :
-        layer_counter += 1
-        for call_f in f.call_func_list:
-            print ("    "*layer_counter,end="")
-            print ("|-",call_f.name )
-            func_obj = get_func_obj_by_name( call_f.name )
-            if func_obj != None:
-                print_func_relationship ( func_obj )  
-        layer_counter -= 1
-        return        
-    else :
-        return None
-
-def print_func_list( graph ):
-    for f in graph.all_func_list :
-        if f.called == 0 :    
-            print ( " \n<<< %s >>>"%( f.name) )
-        else:
-            print ( " \n< %s >"%( f.name) )
-
-        print ( "called:%i"%( f.called) )
-        if f.called_func_name_list.__len__() > 0 :
-            print (  f.called_func_name_list  )
-
-        print ( "calling:%i"%( f.calling ) )
-        if f.call_func_name_list.__len__() > 0 :
-            print (  f.call_func_name_list  )
-
-
-################################
-## 展开函数关系图，递归调用
-def extend_relationship ( canvas, f, id ):
-    parent_id = id
-    child_id = 0
-    chide_base = id *10
-    child_offset = 0
-    
-    ## TODO 根据函数的地位，为每个 node 计算设定 pos
-    ## 最后，绘制时也要获取 pos 元组，分别导入 edge 和 node 绘制
-
-    ## TODO 根据函数地位不同，设置每个node 的颜色不同，最后单独绘制 node
-    canvas.add_node( parent_id , desc= f.name )
-
-    if f.calling != 0 :
-        child_offset = 0
-        for call_func_name in f.call_func_name_list:
-            child_id = chide_base + child_offset
-            # 添加一个子节点
-            canvas.add_node( child_id , desc= call_func_name )
-            print ( "C: %i,%s"% ( child_id , call_func_name) ) 
-            # 添加“父子”连接
-            canvas.add_edge( parent_id , child_id) 
-            # 根据函数名，获取函数对象，准备向下遍历
-            func_obj = get_func_obj_by_name( call_func_name )
-            child_offset += 1
-            if func_obj != None:
-                extend_relationship (canvas , func_obj , child_id ) 
-        return        
-    else :
-        return None
-
-#######################################
-## 绘制指定函数的调用关系图
-# def draw_root_func_relationship( root_func ):
-#     canvas = nx.DiGraph()
-#     extend_relationship ( canvas , root_func , 1 )
-
-#     pos = nx.spring_layout(canvas)
-#     nx.draw_networkx_edges(canvas,pos,alpha=0.4)
-
-#     nx.draw_networkx_nodes(canvas,pos,node_size=80,alpha=0.4)
-
-#     # nx.draw(canvas, pos,node_size =400 )
-#     node_labels = nx.get_node_attributes(canvas, 'desc')
-#     nx.draw_networkx_labels(canvas, pos, labels=node_labels)
-#     plt.show()
 
 def main():
-    # print ("main:")
     file_list = get_filelist( sys.path[0]+"/src" )    
     graph = Code_graph()
-    # new_define_something( graph ,"src/ttt.c" )
-
 
     ## 第一次遍历，扫描所有文件，将定义函数添加到列表 all_func_list
     for f in file_list:
         new_define_something( graph ,f )
-        #scan_def_func( graph, f )
-    
-    # ## 第二次遍历，扫描所有文件，将定义函数内的“被调用函数”登记到
-    # ## “调用函数”(定义函数) 的 call_func_name_list 中
-    # ## 如果是库函数，将会在此过程被添加到 all_func_list 
-    # ## 此过程，还将完成：记录函数的“被调用计数called”和“调用计数calling”
-    # for f in file_list:
-    #     print ("File : ", f )
-    #     scan_call_func( graph, f )
-
-    # print_func_list( graph )
-
-    # # ## 绘制所有的“顶层函数”的调用关系
-    # root_func_list = []
-    # for f in graph.all_func_list :
-    #     if f.called == 0:
-    #         print ("CALLED_0 : ", f.name )
-    #         root_func_list.append(f)
-
-    # draw_root_func_relationship(  root_func_list[0] )
-    # print ( " \nROOT Func : %s "%( f.name) )
     return 
 
 #########
