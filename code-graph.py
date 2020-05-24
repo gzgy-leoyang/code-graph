@@ -73,8 +73,15 @@ def get_name( _str ):
     for str in str_list :
         str = str[:-1]
         fun_list.append(str)
-    # print ( fun_list )
     return fun_list
+
+####################################
+## 由 函数名，返回函数对象
+def get_func_obj_by_name( graph,func_name ):
+    for f in graph.all_func_list :
+        if func_name == f.name :
+            return f
+    return None
 
 def new_define_something( graph , src_file_name ):
     level_1_patten = re.compile( r'''.*\w+\(.*\)''' ,re.X) # xxx() ,无空格
@@ -110,25 +117,34 @@ def new_define_something( graph , src_file_name ):
                     if line.__contains__(";"):
                         # 有；，函数声明和调用
                         if rgl_call_fun_patten.match ( line_0 ):
-                            n = get_name( line_0 )
-                            print ( "   Call :",n )
+                            names = get_name( line_0 )
                             if ( def_func != None ):
-                                def_func.calling += 1
-                                def_func.call_func_name_list.append( n )
+                                for name in names:
+                                    re_marked = 0
+                                    for name_marked in def_func.call_func_name_list :
+                                        if ( name_marked ==  name  ):
+                                            re_marked += 1
+                                    
+                                    if ( re_marked == 0 ):
+                                        # print ( "   Call :",name)
+                                        def_func.calling += 1
+                                        def_func.call_func_name_list.append( name )
                         else :
-                            print ( "Declare : ",line_0 )
+                            pass
+                            # print ( "Declare : ",line_0 )
                     else:
                         if rgl_define_fun_patten.match ( line_0 ):
-                            n = get_name( line_0 )
-                            print ( "Define : ",n )
-                            def_func = Function( n )
-                            def_func.start_line = current_line
-                            def_func.parent_src_file = src_file_name
-                            src_file.func_list.append( def_func )
-                            graph.all_func_list.append(def_func)
+                            names = get_name( line_0 )
+                            for nm in names:
+                                # print ( "Define : ",nm)
+                                def_func = Function( nm )
+                                def_func.start_line = current_line
+                                def_func.parent_src_file = src_file_name
+                                src_file.func_list.append ( def_func )
+                                graph.all_func_list.append ( def_func )
                         else :
                             str_list = re.findall(r"\(.*\)", line_0)
-                            print ( "其他",str_list )
+                            # print ( "其他",str_list )
     return 0
 
 ## 遍历所有文件，记录 c 文件
@@ -140,14 +156,66 @@ def get_filelist(dir):
                 Filelist.append(os.path.join(home, filename))
     return Filelist
 
+## 梳理被调用关系
+#  对每一个定义函数，排查其调用函数列表，如果定义函数名=被调用函数名，则标记
+# 定义函数的被调用记录，包括：被调用计数和调用该定义函数的函数名
+def checkout_called( graph ):
+    for fx in graph.all_func_list : # 定义函数
+        for fy in graph.all_func_list : # 遍历包括定义函数在内的所有定义函数
+            for fz in fy.call_func_name_list: # 逐一检查定义函数的调用列表，排查是否与定义函数同名
+                if ( fz == fx.name ):
+                    fx.called += 1
+                    fx.called_func_name_list.append( fy.name )
+
+
+def max_called_calling( graph ):
+    call_max_name = ""
+    call_max_num = 0
+
+    called_max_name = ""
+    called_max_num = 0
+    for fx in graph.all_func_list :
+        if fx.calling > call_max_num :
+            call_max_num = fx.calling
+            call_max_name =  fx.name
+        if fx.called > called_max_num:
+            called_max_num = fx.called
+            called_max_name = fx.name
+
+    print("MAX_CALL : ",call_max_name,call_max_num)
+    print("MAX_CALLED : ",called_max_name,called_max_num)
+
+def print_func_list( graph ):
+    for f in graph.all_func_list :
+        if f.called == 0 :    
+            print ( " \n<<< %s >>>"%( f.name) )
+        else:
+            print ( " \n< %s >"%( f.name) )
+
+        print ( "called:%i"%( f.called) )
+        if f.called_func_name_list.__len__() > 0 :
+            print (  f.called_func_name_list  )
+
+        print ( "calling:%i"%( f.calling ) )
+        if f.call_func_name_list.__len__() > 0 :
+            print (  f.call_func_name_list  )
+
 
 def main():
     file_list = get_filelist( sys.path[0]+"/src" )    
     graph = Code_graph()
+    # new_define_something( graph ,"src/can_service.c" )
+    # checkout_called( graph )
+    # print_func_list( graph )
 
     ## 第一次遍历，扫描所有文件，将定义函数添加到列表 all_func_list
     for f in file_list:
         new_define_something( graph ,f )
+
+    checkout_called( graph )
+    print_func_list( graph )
+    max_called_calling( graph )
+
     return 
 
 #########
