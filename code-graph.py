@@ -6,12 +6,11 @@ import re
 import sys
 import getopt
 import readline
-
 import string
 
 ## 绘图
-# import networkx as nx
-# import matplotlib.pyplot as plt
+import networkx as nx
+import matplotlib.pyplot as plt
 
 ##############
 ##
@@ -64,7 +63,6 @@ def keyword_call ( _str ):
         for str in str_list: ## 如果嵌套调用，就处理多个符合 xxx( 的字符串
             str = str[:-1]
             fun_list.append( str )
-        # print ( "调用:",fun_list )
     return fun_list
 
 def get_name( _str ):
@@ -111,7 +109,17 @@ def new_define_something( graph , src_file_name ):
             if level_1_patten.match ( line ):  
                 if ( any ( keyword in line_0 for keyword in ["if", "switch", "while","for"] ) ):
                     # 关键词语句，进一步提取后再通过正则判断
-                    keyword_call ( line_0 )
+                    names = keyword_call ( line_0 )
+                    if ( def_func != None ):
+                        for name in names:
+                            re_marked = 0
+                            for name_marked in def_func.call_func_name_list :
+                                if ( name_marked ==  name  ):
+                                    re_marked += 1
+                            if ( re_marked == 0 ):
+                                # print ( "   Call :",name)
+                                def_func.calling += 1
+                                def_func.call_func_name_list.append( name )
                 else :
                     # 函数定义，声明，调用
                     if line.__contains__(";"):
@@ -200,24 +208,117 @@ def print_func_list( graph ):
         if f.call_func_name_list.__len__() > 0 :
             print (  f.call_func_name_list  )
 
+####################################
+## 由 函数名，返回函数对象
+def get_func_obj_by_name( graph,func_name ):
+    func_obj = None
+    for f in graph.all_func_list :
+        if func_name == f.name :
+            return f
+    return None
 
-def main():
+################################
+## 展开函数关系图，递归调用
+def extend_relationship (graph, canvas, f, id ):
+    parent_id = id
+    child_id = 0
+    chide_base = id *10
+    child_offset = 0
+    
+    ## TODO 根据函数的地位，为每个 node 计算设定 pos
+    ## 最后，绘制时也要获取 pos 元组，分别导入 edge 和 node 绘制
+
+    ## TODO 根据函数地位不同，设置每个node 的颜色不同，最后单独绘制 node
+    canvas.add_node( parent_id , desc= f.name )
+
+    if f.calling != 0 :
+        child_offset = 0
+        for call_func_name in f.call_func_name_list:
+            child_id = chide_base + child_offset
+            # 添加一个子节点
+            canvas.add_node( child_id , desc= call_func_name )
+            print ( "C: %i,%s"% ( child_id , call_func_name) ) 
+            # 添加“父子”连接
+            canvas.add_edge( parent_id , child_id) 
+            # 根据函数名，获取函数对象，准备向下遍历
+            func_obj = get_func_obj_by_name( graph, call_func_name )
+            child_offset += 1
+            if func_obj != None:
+                extend_relationship ( graph , canvas , func_obj , child_id ) 
+        return        
+    else :
+        return None
+
+
+######################################
+# 绘制指定函数的调用关系图
+def draw_root_func_relationship( graph , root_func ):
+    canvas = nx.DiGraph()
+    extend_relationship ( graph , canvas , root_func , 1 )
+
+    pos = nx.spring_layout(canvas)
+    nx.draw_networkx_edges(canvas,pos,alpha=0.4)
+
+    nx.draw_networkx_nodes(canvas,pos,node_size=80,alpha=0.4)
+
+    # nx.draw(canvas, pos,node_size =400 )
+    node_labels = nx.get_node_attributes(canvas, 'desc')
+    nx.draw_networkx_labels(canvas, pos, labels=node_labels)
+    plt.show()
+
+def print_usage():
+    print ( 'code-graph v0.0.1' )
+    print ( 'Usage: code-graph.py -i <inputfile> -o <outputfile> ' )
+    exit()
+
+def parse_opt( argv ):
+    inputfile = ''
+    outputfile = ''
+    try:
+        opts, args = getopt.getopt(argv,"hi:",["ifile="])
+    except getopt.GetoptError:
+        print ( 'code-graph -i <inputfile>' )
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print ( 'code-graph.py -i <inputfile> -o <outputfile> ' )
+            sys.exit()
+        elif opt in ("-i", "--ifile"):
+            inputfile = arg
+            return inputfile
+
+def main ( argv ):
+    input_file = parse_opt( argv )
+    
+    if ( input_file == None ):
+        print_usage()
+
+    if not os.access( input_file, os.F_OK):
+        print_usage()
+
     file_list = get_filelist( sys.path[0]+"/src" )    
     graph = Code_graph()
-    # new_define_something( graph ,"src/can_service.c" )
+
+    new_define_something( graph ,input_file )
+    checkout_called( graph )
+    print_func_list( graph )
+
+    ## 第一次遍历，扫描所有文件，将定义函数添加到列表 all_func_list
+    # for f in file_list:
+    #     new_define_something( graph ,f )
     # checkout_called( graph )
     # print_func_list( graph )
 
-    ## 第一次遍历，扫描所有文件，将定义函数添加到列表 all_func_list
-    for f in file_list:
-        new_define_something( graph ,f )
-
-    checkout_called( graph )
-    print_func_list( graph )
-    max_called_calling( graph )
+    for f in graph.all_func_list :
+        if f.called == 0:
+            print ("CALLED_0 : ", f.name )
+            root_func = f
+            break
+    
+    draw_root_func_relationship( graph , root_func )
 
     return 
 
 #########
 if __name__ == "__main__":
-    main()
+    main ( sys.argv[1:]  )

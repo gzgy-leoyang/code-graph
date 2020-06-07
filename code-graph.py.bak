@@ -382,8 +382,8 @@ def extend_relationship ( canvas, f, id ):
     else :
         return None
 
-#######################################
-## 绘制指定函数的调用关系图
+# ######################################
+# # 绘制指定函数的调用关系图
 # def draw_root_func_relationship( root_func ):
 #     canvas = nx.DiGraph()
 #     extend_relationship ( canvas , root_func , 1 )
